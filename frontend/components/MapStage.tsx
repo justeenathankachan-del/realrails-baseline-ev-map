@@ -101,6 +101,7 @@ export default function MapStage({ onCountChange, filters }: Props) {
         })),
       };
 
+     if (!map) return;
       const source = map.getSource("stations") as maplibregl.GeoJSONSource;
       if (source) source.setData(geojson);
 

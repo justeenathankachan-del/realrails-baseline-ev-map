@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import FilterPanel from "@/components/Filterpanel";
-
+import AboutModal from "@/components/AboutModal";
 const MapStage = dynamic(() => import("@/components/MapStage"), {
   ssr: false,
 });
@@ -21,7 +21,7 @@ export default function Page() {
 
   const [stationCount, setStationCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
-
+const [aboutOpen, setAboutOpen] = useState(false);
   const [filters, setFilters] = useState({
     level: "ALL",
     region: [] as string[],
@@ -227,6 +227,7 @@ export default function Page() {
         stationCount={stationCount}
         dataSource="OpenChargeMap"
         isLoading={!backendMetrics}
+        onAbout={() => setAboutOpen(true)}
       />
 
       <div className="absolute top-16 left-6 z-50">
@@ -257,6 +258,10 @@ export default function Page() {
         />
 
       </div>
+    <AboutModal
+  open={aboutOpen}
+  onClose={() => setAboutOpen(false)}
+/>
     </div>
   );
 }

@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set VIRTUAL_ENV=C:\Users\USER\Documents\MY Products\Dexter_Demo\ev-demo-main\ev-demo-main\venv
+set VIRTUAL_ENV=C:\Users\jesti\realrails-baseline-ev-map\venv
 
 if not defined PROMPT set PROMPT=$P$G
 
