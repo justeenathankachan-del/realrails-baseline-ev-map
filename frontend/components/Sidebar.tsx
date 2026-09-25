@@ -70,6 +70,17 @@ export function Sidebar({ metrics, onRefresh, topOperators = [] }: Props) {
     <aside className="w-[360px] h-full bg-dex-surface border-l border-dex-border flex flex-col">
 
       <div className="flex-1 overflow-y-auto px-5 py-5">
+        <div className="mb-6 rounded-xl border border-cyan-400/30 bg-cyan-400/10 p-4">
+  <p className="text-xs uppercase tracking-widest text-cyan-300">
+    Phase 0
+  </p>
+  <h2 className="mt-2 text-lg font-bold text-white">
+    EV Network Command Centre
+  </h2>
+  <p className="mt-2 text-sm text-gray-300">
+    Cinematic dashboard for the EV charging network.
+  </p>
+</div>
 
         {/* SECTION A */}
         <div className="mb-8">

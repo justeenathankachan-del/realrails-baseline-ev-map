@@ -1,0 +1,2258 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+data/
+  ocm_reference.pkl
+  store_df.pkl
+frontend/
+  app/
+    favicon.ico
+    globals.css
+    layout.tsx
+    page.tsx
+  components/
+    AboutModal.tsx
+    Filterpanel.tsx
+    MapStage.tsx
+    Sidebar.tsx
+    Topbar.tsx
+  public/
+    file.svg
+    globe.svg
+    next.svg
+    vercel.svg
+    window.svg
+  .gitignore
+  AGENTS.md
+  CLAUDE.md
+  eslint.config.mjs
+  next.config.ts
+  package.json
+  postcss.config.js
+  postcss.config.mjs
+  tailwind.config.js
+  tsconfig.json
+.gitignore
+download_ev_dataset.py
+ev demo sr.mp4
+fetch_data.py
+git
+global_count.py
+main.py
+README.md
+requirements.txt
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="frontend/app/globals.css">
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply h-full overflow-hidden antialiased;
+    background-color: #030712;
+    color: #F1F5F9;
+  }
+
+  * {
+    @apply box-border;
+  }
+}
+
+/* Glassmorphism */
+.glass {
+  @apply backdrop-blur-md border;
+  background-color: rgba(11, 17, 23, 0.8);
+  border-color: rgba(31, 41, 55, 0.5);
+}
+
+/* Cyan glow on active */
+.glow-active {
+  @apply border;
+  border-color: #38BDF8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1F2937;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #38BDF8;
+}
+
+/* Animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.6);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+</file>
+
+<file path="frontend/app/layout.tsx">
+import "./globals.css";
+
+export const metadata = {
+  title: "EV Rail Intelligence",
+  description: "Global EV Charging Network",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <head>
+        <link
+          href="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.css"
+          rel="stylesheet"
+        />
+      </head>
+      <body>
+        {children}
+      </body>
+    </html>
+  );
+}
+</file>
+
+<file path="frontend/app/page.tsx">
+"use client";
+
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
+import { Sidebar } from "@/components/Sidebar";
+import { Topbar } from "@/components/Topbar";
+import FilterPanel from "@/components/Filterpanel";
+import AboutModal from "@/components/AboutModal";
+const MapStage = dynamic(() => import("@/components/MapStage"), {
+  ssr: false,
+});
+
+type CountryOption = {
+  country_id: number;
+  country_name: string;
+};
+
+export default function Page() {
+  // ✅ ONLY FIX: fallback added (NO logic/UI change)
+  const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+
+  const [stationCount, setStationCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
+const [aboutOpen, setAboutOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    level: "ALL",
+    region: [] as string[],
+    operator: "",
+  });
+
+  const [operatorId, setOperatorId] = useState<number | null>(null);
+
+  const [backendMetrics, setBackendMetrics] = useState<any>(null);
+  const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [topOperators, setTopOperators] = useState<any[]>([]);
+  const [filteredTotal, setFilteredTotal] = useState<number | null>(null);
+
+  const triggerRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const res = await fetch(`${API}/api/metrics`);
+        const data = await res.json();
+        setBackendMetrics(data);
+      } catch {
+        setBackendMetrics(null);
+      }
+    };
+
+    fetchMetrics();
+  }, [refreshKey]);
+
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const res = await fetch(`${API}/api/filters/countries`);
+        const data = await res.json();
+        setCountries(data);
+      } catch {}
+    };
+
+    fetchCountries();
+  }, []);
+
+  useEffect(() => {
+    const fetchOperator = async () => {
+      const q = filters.operator?.trim();
+
+      if (!q) {
+        setOperatorId(null);
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `${API}/api/filters/operators?q=${q}`
+        );
+
+        if (!res.ok) {
+          setOperatorId(null);
+          return;
+        }
+
+        const data = await res.json();
+
+        if (!Array.isArray(data) || data.length === 0) {
+          setOperatorId(null);
+          return;
+        }
+
+        const exact = data.find(
+          (op: any) =>
+            op.operator_name?.toLowerCase() === q.toLowerCase()
+        );
+
+        if (exact) {
+          setOperatorId(exact.operator_id);
+          return;
+        }
+
+        const startsWith = data.find((op: any) =>
+          op.operator_name?.toLowerCase().startsWith(q.toLowerCase())
+        );
+
+        if (startsWith) {
+          setOperatorId(startsWith.operator_id);
+          return;
+        }
+
+        setOperatorId(data[0].operator_id);
+
+      } catch {
+        setOperatorId(null);
+      }
+    };
+
+    fetchOperator();
+  }, [filters.operator]);
+
+  useEffect(() => {
+    const fetchTopOperators = async () => {
+      try {
+        let url = `${API}/api/top-operators`;
+
+        const params = new URLSearchParams();
+
+        if (filters.region.length > 0) {
+          filters.region.forEach((id) => {
+            const numericId = Number(id);
+            if (!isNaN(numericId)) {
+              params.append("country_id", numericId.toString());
+            }
+          });
+        }
+
+        if (operatorId) {
+          params.append("operator_id", operatorId.toString());
+        }
+
+        if (params.toString()) {
+          url += `?${params.toString()}`;
+        }
+
+        const res = await fetch(url);
+        const data = await res.json();
+        setTopOperators(Array.isArray(data) ? data : []);
+      } catch {
+        setTopOperators([]);
+      }
+    };
+
+    fetchTopOperators();
+  }, [filters, operatorId]);
+
+  useEffect(() => {
+    const fetchTotal = async () => {
+      try {
+        let url = `${API}/api/stations/count`;
+
+        const params = new URLSearchParams();
+
+        if (filters.region.length > 0) {
+          filters.region.forEach((id) => {
+            const numericId = Number(id);
+            if (!isNaN(numericId)) {
+              params.append("country_id", numericId.toString());
+            }
+          });
+        }
+
+        if (operatorId) {
+          params.append("operator_id", operatorId.toString());
+        }
+
+        if (params.toString()) {
+          url += `?${params.toString()}`;
+        }
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        setFilteredTotal(data?.total ?? 0);
+      } catch {
+        setFilteredTotal(null);
+      }
+    };
+
+    fetchTotal();
+  }, [filters, operatorId]);
+
+  const isFiltered =
+    filters.region.length > 0 || operatorId !== null;
+
+  const totalStations = isFiltered
+    ? filteredTotal ?? 0
+    : backendMetrics?.total_stations ?? 0;
+
+  const networkDensity =
+    backendMetrics?.countries && backendMetrics?.countries > 0
+      ? Math.floor(
+          (backendMetrics.total_stations || 0) /
+          backendMetrics.countries
+        )
+      : 0;
+
+  const metrics = {
+    total_stations: totalStations,
+
+    dc_fast: isFiltered
+      ? Math.floor(totalStations * 0.6)
+      : backendMetrics?.public_access ?? Math.floor(stationCount * 0.6),
+
+    operators: isFiltered
+      ? topOperators.length
+      : backendMetrics?.operators ?? 0,
+
+    countries: networkDensity,
+  };
+
+  return (
+    <div className="w-screen h-screen bg-dex-surface text-white flex flex-col overflow-hidden">
+
+      <Topbar
+        stationCount={stationCount}
+        dataSource="OpenChargeMap"
+        isLoading={!backendMetrics}
+        onAbout={() => setAboutOpen(true)}
+      />
+
+      <div className="absolute top-16 left-6 z-50">
+        <FilterPanel
+          filters={filters}
+          onChange={setFilters}
+          countryOptions={countries}
+        />
+      </div>
+
+      <div className="flex flex-1 w-full h-full">
+
+        <div className="flex-1 h-full bg-dex-surface">
+          <MapStage
+            key={refreshKey}
+            onCountChange={setStationCount}
+            filters={{
+              ...filters,
+              operator: operatorId ? operatorId.toString() : "",
+            }}
+          />
+        </div>
+
+        <Sidebar
+          metrics={metrics}
+          onRefresh={triggerRefresh}
+          topOperators={topOperators}
+        />
+
+      </div>
+    <AboutModal
+  open={aboutOpen}
+  onClose={() => setAboutOpen(false)}
+/>
+    </div>
+  );
+}
+</file>
+
+<file path="frontend/components/AboutModal.tsx">
+"use client";
+
+type Props = {
+  open: boolean;
+  onClose: () => void;
+};
+
+export default function AboutModal({ open, onClose }: Props) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[999]">
+      <div className="bg-[#07121F] border border-cyan-400/30 rounded-xl w-[500px] p-6 text-white">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">
+            About EV Network Command Centre
+          </h2>
+          <button onClick={onClose}>✕</button>
+        </div>
+
+        <div className="space-y-3 text-sm">
+          <p><b>Developer:</b> Justeena Thankachan</p>
+          <p><b>Technology:</b> FastAPI · Next.js · MapLibre</p>
+          <p><b>Version:</b> Phase 0</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="frontend/components/Filterpanel.tsx">
+"use client";
+
+import { useState, useMemo, useRef, useEffect } from "react";
+
+type FilterState = {
+  level: string;
+  region: string[];
+  operator: string;
+};
+
+type CountryOption = {
+  country_id: number;
+  country_name: string;
+};
+
+type Props = {
+  filters?: FilterState;
+  onChange?: (filters: FilterState) => void;
+  countryOptions?: CountryOption[];
+};
+
+export default function FilterPanel({
+  filters = { level: "ALL", region: [], operator: "" },
+  onChange = () => {},
+  countryOptions = [],
+}: Props) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredCountries = useMemo(() => {
+    return countryOptions.filter((c) =>
+      c.country_name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [countryOptions, searchTerm]);
+
+  // ✅ SINGLE SELECT (minimal change)
+  const toggleCountry = (id: string) => {
+    onChange({
+      ...filters,
+      region: filters.region.includes(id) ? [] : [id],
+    });
+  };
+
+  const selectedCount = filters.region.length;
+
+  const selectedLabel = useMemo(() => {
+    if (selectedCount === 0) return "Select Country";
+
+    const selected = countryOptions.find(
+      (c) => String(c.country_id) === filters.region[0]
+    );
+
+    return selected?.country_name || "Select Country";
+  }, [filters.region, countryOptions]);
+
+  return (
+    <div className="bg-[#0B1117]/90 backdrop-blur-md border border-[#1F2937] px-4 py-3 rounded-lg flex gap-3 items-center z-50">
+        
+      <div className="relative" ref={dropdownRef}>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className={`text-xs px-3 py-1.5 rounded w-56 text-left flex justify-between items-center transition
+          
+          ${
+            selectedCount > 0
+              ? "bg-[#030712] border border-[#38BDF8] text-[#38BDF8] shadow-[0_0_8px_rgba(56,189,248,0.4)]"
+              : "bg-[#030712] border border-[#1F2937] text-[#E5E7EB]"
+          }`}
+        >
+          <span className="truncate">
+            {selectedLabel}
+          </span>
+
+          <span className="text-[10px] opacity-50">
+            {isOpen ? "▲" : "▼"}
+          </span>
+        </button>
+
+        {isOpen && (
+          <div className="absolute top-11 left-0 w-64 bg-[#0D141C] border border-[#1F2937] rounded shadow-2xl flex flex-col">
+            <input
+              autoFocus
+              placeholder="Search countries..."
+              className="p-2.5 text-xs bg-[#161B22] border-b border-[#1F2937] outline-none text-white"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+
+            <div className="max-h-60 overflow-y-auto p-1">
+              {filteredCountries.map((c) => {
+                const id = String(c.country_id);
+                return (
+                  <label
+                    key={id}
+                    className="flex items-center gap-2 px-3 py-2 hover:bg-[#1F2937] cursor-pointer text-xs text-gray-300 rounded"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters.region.includes(id)}
+                      onChange={() => toggleCountry(id)}
+                      className="accent-[#38BDF8]"
+                    />
+                    {c.country_name}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ✅ OPERATOR → SAME BLUE STYLE WHEN ACTIVE */}
+      <input
+        placeholder="Search operator"
+        value={filters.operator}
+        onChange={(e) => onChange({ ...filters, operator: e.target.value })}
+        className={`text-xs px-3 py-1.5 rounded w-48 transition-all duration-200
+          ${
+            filters.operator && filters.operator !== ""
+              ? "bg-[#030712] border border-[#38BDF8] text-[#38BDF8] shadow-[0_0_8px_rgba(56,189,248,0.4)]"
+              : "bg-[#030712] border border-[#1F2937] text-[#E5E7EB]"
+          }
+        `}
+      />
+    </div>
+  );
+}
+</file>
+
+<file path="frontend/components/MapStage.tsx">
+"use client";
+
+import { useEffect, useRef } from "react";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+
+type Filters = {
+  region: string[] | string;
+  operator: string;
+};
+
+type Props = {
+  onCountChange?: (count: number) => void;
+  filters?: Filters;
+};
+
+export default function MapStage({ onCountChange, filters }: Props) {
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const debounceRef = useRef<any>(null);
+  const isLoadedRef = useRef(false);
+
+  const shouldMoveRef = useRef(false);
+  const isInitialMoveRef = useRef(false);
+
+  const isFilterModeRef = useRef(false);
+  const blockNextMoveRef = useRef(false); // ✅ NEW
+
+  const fetchStations = async () => {
+    const map = mapRef.current;
+    if (!map || !isLoadedRef.current) return;
+
+    const zoom = map.getZoom();
+
+    let params: URLSearchParams;
+
+    const isFiltered =
+      (Array.isArray(filters?.region) && filters.region.length > 0) ||
+      (!!filters?.operator && filters.operator !== "");
+
+    if (isFiltered && shouldMoveRef.current) {
+      params = new URLSearchParams({
+        min_lat: "-90",
+        max_lat: "90",
+        min_lng: "-180",
+        max_lng: "180",
+        zoom: Math.floor(zoom).toString(),
+      });
+    } else {
+      const bounds = map.getBounds();
+      if (!bounds) return;
+
+      params = new URLSearchParams({
+        min_lat: bounds.getSouth().toString(),
+        max_lat: bounds.getNorth().toString(),
+        min_lng: bounds.getWest().toString(),
+        max_lng: bounds.getEast().toString(),
+        zoom: Math.floor(zoom).toString(),
+      });
+    }
+
+    if (filters?.region) {
+      if (Array.isArray(filters.region)) {
+        filters.region.forEach((id) => {
+          if (id && id !== "ALL" && id !== "") {
+            params.append("country_id", id);
+          }
+        });
+      } else if (
+        typeof filters.region === "string" &&
+        filters.region !== "ALL" &&
+        filters.region !== ""
+      ) {
+        params.append("country_id", filters.region);
+      }
+    }
+
+    if (filters?.operator && filters.operator !== "") {
+      params.append("operator_id", filters.operator);
+    }
+
+    const API = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const url = `${API}/api/stations/filtered?${params.toString()}`;
+    console.log("🔍 FETCH URL:", url);
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return;
+
+      const data = await res.json();
+      const featuresArray = data?.features || [];
+
+      const geojson: any = {
+        type: "FeatureCollection",
+        features: featuresArray.map((p: any) => ({
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [p.lng, p.lat],
+          },
+        })),
+      };
+
+     if (!map) return;
+      const source = map.getSource("stations") as maplibregl.GeoJSONSource;
+      if (source) source.setData(geojson);
+
+      // ✅ FIXED: block next move event
+      if (featuresArray.length > 0 && shouldMoveRef.current) {
+        let sumLat = 0;
+        let sumLng = 0;
+
+        featuresArray.forEach((p: any) => {
+          sumLat += p.lat;
+          sumLng += p.lng;
+        });
+
+        const centerLat = sumLat / featuresArray.length;
+        const centerLng = sumLng / featuresArray.length;
+
+        blockNextMoveRef.current = true; // 🔥 KEY FIX
+
+        map.flyTo({
+          center: [centerLng, centerLat],
+          zoom: Math.max(map.getZoom(), 4.5),
+          duration: 800,
+        });
+
+        shouldMoveRef.current = false;
+        return;
+      }
+
+      onCountChange?.(data?.total || 0);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const debouncedFetch = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(fetchStations, 300);
+  };
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style:
+        "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+      center: [10, 50],
+      zoom: 3.5,
+    });
+
+    mapRef.current = map;
+
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+    map.on("load", () => {
+      isLoadedRef.current = true;
+
+      map.addSource("stations", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+
+      map.addLayer({
+        id: "stations-layer",
+        type: "circle",
+        source: "stations",
+        paint: {
+          "circle-radius": 3.5,
+          "circle-color": "#22D3EE",
+          "circle-opacity": 0.8,
+        },
+      });
+
+      fetchStations();
+    });
+
+    // ✅ FINAL LOCK + FIX
+    map.on("moveend", () => {
+      if (blockNextMoveRef.current) {
+        blockNextMoveRef.current = false;
+        return;
+      }
+
+      if (isFilterModeRef.current) return; // 🔒 LOCK
+
+      debouncedFetch();
+    });
+
+    map.on("zoomend", () => {
+      if (blockNextMoveRef.current) {
+        blockNextMoveRef.current = false;
+        return;
+      }
+
+      if (isFilterModeRef.current) return; // 🔒 LOCK
+
+      debouncedFetch();
+    });
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      map.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isLoadedRef.current) {
+      const isFiltered =
+        (Array.isArray(filters?.region) && filters.region.length > 0) ||
+        (!!filters?.operator && filters.operator !== "");
+
+      shouldMoveRef.current = true;
+      isFilterModeRef.current = isFiltered;
+
+      fetchStations();
+    }
+  }, [JSON.stringify(filters)]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full h-full bg-[#020617]"
+    />
+  );
+}
+</file>
+
+<file path="frontend/components/Sidebar.tsx">
+"use client";
+
+import { useEffect, useState } from "react";
+
+type Props = {
+  metrics: {
+    total_stations: number;
+    dc_fast: number;
+    operators: number;
+    countries: number;
+  };
+  onRefresh?: () => void;
+  topOperators?: {
+    operator_name?: string;
+    operator_id?: string | number;
+    count: number;
+  }[];
+};
+
+export function Sidebar({ metrics, onRefresh, topOperators = [] }: Props) {
+
+  const API = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  const [localOperators, setLocalOperators] = useState<
+    { operator_name?: string; operator_id?: string | number; count: number }[]
+  >([]);
+
+  useEffect(() => {
+    if (topOperators.length > 0) return;
+
+    const fetchOperators = async () => {
+      try {
+        const res = await fetch(`${API}/api/top-operators`);
+
+        if (!res.ok) {
+          setLocalOperators([]);
+          return;
+        }
+
+        const data = await res.json();
+        setLocalOperators(Array.isArray(data) ? data : []);
+      } catch {
+        setLocalOperators([]);
+      }
+    };
+
+    fetchOperators();
+  }, [topOperators]);
+
+  const operatorsToShow =
+    topOperators.length > 0 ? topOperators : localOperators;
+
+  // 🔥 UPDATED LOGIC (Independent at TOP)
+  const unknownOperator = operatorsToShow.find(
+    (op) => String(op.operator_id) === "0"
+  );
+
+  const validOperators = operatorsToShow
+    .filter((op) => String(op.operator_id) !== "0")
+    .sort((a, b) => (b.count ?? 0) - (a.count ?? 0));
+
+  const finalOperators = unknownOperator
+    ? [
+        { ...unknownOperator, operator_name: "Independent" },
+        ...validOperators,
+      ]
+    : validOperators;
+
+  return (
+    <aside className="w-[360px] h-full bg-dex-surface border-l border-dex-border flex flex-col">
+
+      <div className="flex-1 overflow-y-auto px-5 py-5">
+
+        {/* SECTION A */}
+        <div className="mb-8">
+          <p className="text-[11px] tracking-widest text-dex-tx3 uppercase mb-2">
+            SECTION A — RAIL INTELLIGENCE
+          </p>
+
+          <h1 className="text-lg font-semibold text-white mb-1">
+            Global EV Charging Network
+          </h1>
+
+          <p className="text-sm text-dex-tx3 mb-6">
+            Supply Chain Rail · Data Layer
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+
+            <MetricCard
+              label="Total Stations"
+              value={(metrics.total_stations ?? 0).toLocaleString()}
+              accent="cyan"
+            />
+
+            <MetricCard
+              label="Total Public Nodes"
+              value={(metrics.dc_fast ?? 0).toLocaleString()}
+            />
+
+            <MetricCard
+              label="Operators"
+              value={(metrics.operators ?? 0).toLocaleString()}
+            />
+
+            <MetricCard
+              label="Network Density"
+              value={(metrics.countries ?? 0).toLocaleString()}
+            />
+
+          </div>
+        </div>
+
+        {/* SECTION B */}
+        <div className="mb-8 border-t border-dex-border pt-6">
+          <p className="text-[11px] tracking-widest text-dex-tx3 uppercase mb-3">
+            SECTION B — WHY THIS MATTERS
+          </p>
+
+          <p className="text-sm text-[#9CA3AF] leading-relaxed">
+            EV charging infrastructure forms the operational backbone of the electric mobility ecosystem. 
+            Without sufficient network density, adoption slows regardless of vehicle affordability or policy incentives. 
+            High-density regions accelerate usage through convenience and reliability, while underserved geographies 
+            highlight clear deployment opportunities for infrastructure operators and capital allocators.
+          </p>
+        </div>
+
+        {/* SECTION C */}
+        <div className="mb-8 border-t border-dex-border pt-6">
+          <p className="text-[11px] tracking-widest text-dex-tx3 uppercase mb-3">
+            SECTION C — WHO CONTROLS THE RAIL
+          </p>
+
+          {finalOperators.length === 0 ? (
+            <p className="text-sm text-dex-tx3">
+              No data available
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {finalOperators.map((op, i) => {
+
+                let label = op.operator_name;
+
+                if (!label || label.trim() === "") {
+                  if (String(op.operator_id) === "0") {
+                    label = "Independent / Un assigned operator"; // 🔥 updated
+                  } else {
+                    label = String(op.operator_id);
+                  }
+                }
+
+                return (
+                  <div key={i} className="flex justify-between text-sm">
+                    <span className="text-white">
+                      {label}
+                    </span>
+                    <span className="text-dex-cyan">
+                      {(op.count ?? 0).toLocaleString()}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* SECTION D */}
+        <div className="border-t border-dex-border pt-6">
+          <p className="text-[11px] tracking-widest text-dex-tx3 uppercase mb-4">
+            SECTION D — DATA CONTROLS
+          </p>
+
+          <div className="flex gap-3">
+
+            <button
+              onClick={onRefresh}
+              className="flex-1 font-mono text-[11px] border border-dex-border text-white px-3 py-2 rounded-sm hover:border-dex-cyan transition"
+            >
+              REFRESH
+            </button>
+
+            <a
+              href={`${API}/api/stations/csv`}
+              target="_blank"
+              className="flex-1 font-mono text-[11px] border border-dex-border text-white px-3 py-2 rounded-sm text-center hover:border-dex-cyan transition"
+            >
+              DOWNLOAD
+            </a>
+
+          </div>
+        </div>
+
+        <div className="h-16" />
+
+      </div>
+    </aside>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: "cyan";
+}) {
+  return (
+    <div className="bg-dex-surface border border-dex-border rounded-md p-3">
+
+      <p
+        className={`text-sm font-semibold ${
+          accent === "cyan" ? "text-dex-cyan" : "text-white"
+        }`}
+      >
+        {value}
+      </p>
+
+      <p className="text-xs text-dex-tx3 mt-1">
+        {label}
+      </p>
+
+    </div>
+  );
+}
+</file>
+
+<file path="frontend/components/Topbar.tsx">
+"use client";
+
+interface TopbarProps {
+  stationCount: number;
+  dataSource: string;
+  isLoading: boolean;
+  onAbout?: () => void;
+}
+
+export function Topbar({
+  stationCount,
+  dataSource,
+  isLoading,
+  onAbout,
+}: TopbarProps) {
+  return (
+    <header className="absolute top-0 left-0 right-0 z-50 h-16 px-6 flex items-center bg-[#020617]/85 backdrop-blur-xl border-b border-cyan-400/20">
+
+      <div className="flex items-center gap-4">
+        <div
+          className={`w-3 h-3 rounded-full ${
+            isLoading
+              ? "bg-yellow-400 animate-pulse"
+              : "bg-cyan-400 animate-pulse-glow"
+          }`}
+        />
+
+        <div>
+          <h1 className="text-white font-semibold tracking-[0.18em] text-base">
+            EV NETWORK COMMAND CENTRE
+          </h1>
+
+          <p className="text-[10px] text-cyan-300/70 tracking-[0.3em]">
+            GLOBAL ELECTRIC MOBILITY INTELLIGENCE
+          </p>
+        </div>
+      </div>
+
+      <div className="ml-auto flex gap-2 items-center">
+        <span className="font-mono text-[10px] border border-cyan-400/40 text-cyan-300 px-2 py-1 rounded-full">
+          {stationCount.toLocaleString()} STATIONS
+        </span>
+
+        <span className="font-mono text-[10px] border border-cyan-400/40 text-cyan-300 px-2 py-1 rounded-full">
+          OCM LIVE
+        </span>
+
+        <button
+          onClick={onAbout}
+          className="font-mono text-[10px] border border-white/20 text-white/80 px-3 py-1 rounded-full hover:border-cyan-400 hover:text-cyan-300 transition"
+        >
+          ABOUT
+        </button>
+      </div>
+
+    </header>
+  );
+}
+</file>
+
+<file path="frontend/public/file.svg">
+<svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
+</file>
+
+<file path="frontend/public/globe.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
+</file>
+
+<file path="frontend/public/next.svg">
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
+</file>
+
+<file path="frontend/public/vercel.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1155 1000"><path d="m577.3 0 577.4 1000H0z" fill="#fff"/></svg>
+</file>
+
+<file path="frontend/public/window.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5" fill="#666"/></svg>
+</file>
+
+<file path="frontend/.gitignore">
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+</file>
+
+<file path="frontend/AGENTS.md">
+<!-- BEGIN:nextjs-agent-rules -->
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+<!-- END:nextjs-agent-rules -->
+</file>
+
+<file path="frontend/CLAUDE.md">
+@AGENTS.md
+</file>
+
+<file path="frontend/eslint.config.mjs">
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+  ]),
+]);
+
+export default eslintConfig;
+</file>
+
+<file path="frontend/next.config.ts">
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
+</file>
+
+<file path="frontend/package.json">
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "mapbox-gl": "^3.21.0",
+    "maplibre-gl": "^3.6.2",
+    "next": "16.2.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-leaflet": "^5.0.0",
+    "react-map-gl": "^7.1.9"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/leaflet": "^1.9.21",
+    "@types/mapbox-gl": "^3.4.1",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.27",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.1",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}
+</file>
+
+<file path="frontend/postcss.config.js">
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+</file>
+
+<file path="frontend/postcss.config.mjs">
+const config = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+
+export default config;
+</file>
+
+<file path="frontend/tailwind.config.js">
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    "./app/**/*.{js,ts,jsx,tsx}",
+    "./components/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+        dex: {
+          bg: "#030712",
+          surface: "#0B1117",
+          border: "#1F2937",
+          cyan: "#38BDF8",
+          indigo: "#818CF8",
+          tx: "#F1F5F9",
+          tx2: "#94A3B8",
+          tx3: "#475569",
+        },
+      },
+      fontFamily: {
+        sans: ["system-ui", "sans-serif"],
+        mono: ["monospace"],
+      },
+    },
+  },
+  plugins: [],
+};
+</file>
+
+<file path="frontend/tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+</file>
+
+<file path=".gitignore">
+venv/
+.env
+__pycache__/
+*.xlsx
+venv/
+frontend/node_modules/
+frontend/.next/
+</file>
+
+<file path="download_ev_dataset.py">
+import os
+import time
+import requests
+import json
+import pandas as pd
+from dotenv import load_dotenv
+from datetime import datetime
+
+# ─────────────────────────────
+# Load API key
+# ─────────────────────────────
+load_dotenv()
+API_KEY = os.getenv("OCM_API_KEY")
+
+if not API_KEY:
+    print("❌ API key not found in .env")
+    exit()
+
+BASE_URL = "https://api.openchargemap.io/v3"
+
+os.makedirs("data", exist_ok=True)
+
+# ─────────────────────────────
+# Get country list
+# ─────────────────────────────
+def get_countries():
+    res = requests.get(f"{BASE_URL}/referencedata/?key={API_KEY}")
+    return res.json().get("Countries", [])
+
+# ─────────────────────────────
+# Fetch country data
+# ─────────────────────────────
+def fetch_country_data(iso):
+    params = {
+        "output": "json",
+        "countrycode": iso,
+        "maxresults": 100000,   # keeping your version
+        "compact": True,
+        "verbose": False,
+        "key": API_KEY
+    }
+
+    try:
+        res = requests.get(f"{BASE_URL}/poi/", params=params, timeout=60)
+        if res.status_code != 200:
+            return []
+        return res.json()
+    except:
+        return []
+
+# ─────────────────────────────
+# MAIN
+# ─────────────────────────────
+def main():
+    countries = get_countries()
+    all_data = []
+
+    print(f"🌍 Fetching {len(countries)} regions...\n")
+
+    for i, c in enumerate(countries):
+        name = c.get("Title")
+        iso = c.get("ISOCode")
+
+        print(f"{i+1}. Fetching {name} ({iso})...")
+
+        data = fetch_country_data(iso)
+        print(f"   → {len(data)} records")
+
+        all_data.extend(data)
+
+        time.sleep(0.5)
+
+    # ─────────────────────────────
+    # SAVE JSON
+    # ─────────────────────────────
+    print("\n💾 Saving JSON...")
+    with open("data/all_stations.json", "w", encoding="utf-8") as f:
+        json.dump(all_data, f)
+
+    print(" JSON saved")
+
+    # ─────────────────────────────
+    # SHOW TOTAL
+    # ─────────────────────────────
+    print(f"\n Total records downloaded: {len(all_data)}")
+
+    # ─────────────────────────────
+    # CONVERT TO EXCEL
+    # ─────────────────────────────
+    print("📊 Converting to Excel...")
+
+    rows = []
+    for s in all_data:
+        addr = s.get("AddressInfo", {})
+
+        rows.append({
+            "ID": s.get("ID"),
+            "Title": addr.get("Title"),
+            "CountryID": addr.get("CountryID"),
+            "Latitude": addr.get("Latitude"),
+            "Longitude": addr.get("Longitude"),
+            "OperatorID": s.get("OperatorID"),
+            "UsageTypeID": s.get("UsageTypeID")
+        })
+
+    df = pd.DataFrame(rows)
+
+    # 🔥 Save latest (overwrite)
+    latest_file = "data/ev_stations.xlsx"
+    df.to_excel(latest_file, index=False)
+
+    print(f"Excel saved → {latest_file}")
+
+    # 🔥 Save snapshot (NEW ADDITION)
+    today = datetime.now().strftime("%Y-%m-%d")
+    snapshot_file = f"data/ev_stations_{today}.xlsx"
+    df.to_excel(snapshot_file, index=False)
+
+    print(f"Snapshot saved → {snapshot_file}")
+
+    print(" DONE")
+
+# ─────────────────────────────
+# RUN
+# ─────────────────────────────
+if __name__ == "__main__":
+    main()
+</file>
+
+<file path="fetch_data.py">
+import requests
+import json
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+API_KEY = os.getenv("OCM_API_KEY")
+
+if not API_KEY:
+    print("ERROR: API key not found! Check your .env file")
+    exit()
+
+print(f"API Key loaded: ✓")
+
+url = "https://api.openchargemap.io/v3/poi/"
+params = {
+    "output": "json",
+    "maxresults": 5000,
+    "compact": True,
+    "verbose": False,
+    "key": API_KEY,
+    "countrycode": "US"
+}
+
+print("Fetching US EV stations...")
+response = requests.get(url, params=params)
+
+print(f"Status code: {response.status_code}")
+
+if response.status_code != 200:
+    print(f"ERROR: {response.text[:200]}")
+    exit()
+
+data = response.json()
+
+os.makedirs("data", exist_ok=True)
+
+with open("data/us_stations.json", "w") as f:
+    json.dump(data, f, indent=2)
+
+print(f"Done! Saved {len(data)} US stations")
+</file>
+
+<file path="git">
+node_modules/
+add
+.
+</file>
+
+<file path="global_count.py">
+import os
+import time
+import requests
+import json
+from dotenv import load_dotenv
+
+# ─────────────────────────────
+# Setup
+# ─────────────────────────────
+load_dotenv()
+API_KEY = os.getenv("OCM_API_KEY")
+
+if not API_KEY:
+    print("❌ API key not found")
+    exit()
+
+print("✅ API key loaded\n")
+
+BASE_URL = "https://api.openchargemap.io/v3"
+MAX_RESULTS = 100000   # large request (best practical approach)
+
+
+# ─────────────────────────────
+# Get countries
+# ─────────────────────────────
+def get_country_list():
+    url = f"{BASE_URL}/referencedata/?key={API_KEY}"
+    res = requests.get(url)
+
+    if res.status_code != 200:
+        print("❌ Failed to fetch countries")
+        return []
+
+    data = res.json()
+    return data.get("Countries", [])
+
+
+# ─────────────────────────────
+# Get count per country (NO pagination)
+# ─────────────────────────────
+def get_count_for_country(iso):
+    url = f"{BASE_URL}/poi/"
+    params = {
+        "output": "json",
+        "countrycode": iso,
+        "maxresults": MAX_RESULTS,
+        "compact": True,
+        "verbose": False,
+        "key": API_KEY
+    }
+
+    try:
+        res = requests.get(url, params=params, timeout=60)
+
+        if res.status_code != 200:
+            print(f"⚠️ Failed for {iso}")
+            return 0, False
+
+        data = res.json()
+
+        if not isinstance(data, list):
+            return 0, False
+
+        count = len(data)
+
+        # 🔥 truncation detection
+        truncated = count == MAX_RESULTS
+
+        return count, truncated
+
+    except Exception as e:
+        print(f"Error for {iso}: {e}")
+        return 0, False
+
+
+# ─────────────────────────────
+# Main
+# ─────────────────────────────
+def main():
+    countries = get_country_list()
+
+    print(f"🌍 Found {len(countries)} regions\n")
+
+    total = 0
+    results = []
+    truncated_list = []
+
+    for i, c in enumerate(countries):
+        name = c.get("Title", "Unknown")
+        iso = c.get("ISOCode", "")
+
+        print(f"{i+1:03d}. Fetching {name} ({iso})...")
+
+        count, truncated = get_count_for_country(iso)
+
+        total += count
+
+        if truncated:
+            truncated_list.append(name)
+
+        print(f"     → {count}{' ⚠️ TRUNCATED' if truncated else ''}")
+
+        results.append({
+            "country": name,
+            "iso": iso,
+            "count": count,
+            "truncated": truncated
+        })
+
+        time.sleep(0.3)
+
+    # ─────────────────────────────
+    # Save results
+    # ─────────────────────────────
+    os.makedirs("data", exist_ok=True)
+
+    with open("data/country_counts.json", "w", encoding="utf-8") as f:
+        json.dump({
+            "total": total,
+            "countries": results,
+            "truncated_countries": truncated_list
+        }, f, indent=2)
+
+    print("\n────────────────────────────")
+    print(f"🌍 Estimated Total Stations: {total}")
+    print(f"⚠️ Possibly truncated countries: {len(truncated_list)}")
+
+    if truncated_list:
+        print("Examples:", truncated_list[:10])
+
+    print("💾 Saved → data/country_counts.json")
+    print("✅ Done")
+
+
+# ─────────────────────────────
+# Run
+# ─────────────────────────────
+if __name__ == "__main__":
+    main()
+</file>
+
+<file path="main.py">
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+from pathlib import Path
+import pandas as pd
+import numpy as np
+import logging
+import threading
+import requests
+import os
+import io
+import hashlib
+from datetime import datetime
+from contextlib import asynccontextmanager
+from fastapi.responses import StreamingResponse
+from typing import Dict
+from dotenv import load_dotenv
+from typing import List, Dict,Optional, Any
+
+# LOAD ENV
+load_dotenv()
+
+# LOGGING
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("dextere")
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials = True,
+)
+
+# CONFIG
+OCM_API_KEY = os.getenv("OCM_API_KEY")
+EXCEL_PATH = Path("data/ev_stations.xlsx")
+DATA_PATH = Path("data/store_df.pkl")
+REF_PATH = Path("data/ocm_reference.pkl")
+
+EXCEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+# STATE
+store_df = None
+reference_data: Dict[str, Dict[int, str]] = {}
+scheduler = BackgroundScheduler()
+data_lock = threading.Lock()
+ref_lock = threading.Lock()
+
+LAST_HASH = None
+LAST_REF_HASH = None
+
+
+def compute_hash(obj):
+    if isinstance(obj, pd.DataFrame):
+        return hashlib.md5(pd.util.hash_pandas_object(obj, index=True).values).hexdigest()
+    return hashlib.md5(str(obj).encode()).hexdigest()
+
+
+# ------------------ FETCH REFERENCE ------------------
+
+def fetch_reference_data():
+    global reference_data, LAST_REF_HASH
+
+    if not OCM_API_KEY:
+        log.warning("❌ OCM_API_KEY missing → fallback mode")
+        reference_data = {"countries": {}, "operators": {}}
+        return
+
+    try:
+        url = "https://api.openchargemap.io/v3/referencedata"
+        params = {"key": OCM_API_KEY, "output": "json"}
+
+        log.info("🌍 Fetching reference data...")
+        resp = requests.get(url, params=params, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+
+        countries = {int(c['ID']): str(c['Title']) for c in data.get('Countries', [])}
+        operators = {int(o['ID']): str(o['Title']) for o in data.get('Operators', [])}
+
+        log.info(f"Countries fetched: {len(countries)}")
+        log.info(f"Operators fetched: {len(operators)}")
+
+        new_ref = {'countries': countries, 'operators': operators}
+        new_hash = compute_hash(new_ref)
+
+        if LAST_REF_HASH == new_hash:
+            return
+
+        with ref_lock:
+            reference_data = new_ref
+            LAST_REF_HASH = new_hash
+
+        pd.to_pickle(new_ref, REF_PATH)
+        log.info("✅ Reference cached")
+
+    except Exception as e:
+        log.error(f"Reference fetch failed: {e}")
+        reference_data = {"countries": {}, "operators": {}}
+
+
+# ------------------ LOAD DATA ------------------
+
+def load_data():
+    global store_df, LAST_HASH
+
+    if not EXCEL_PATH.exists():
+        log.error("❌ Excel file missing")
+        return
+
+    log.info("📊 Loading dataset...")
+
+    df = pd.read_excel(EXCEL_PATH, engine="openpyxl")
+    df.columns = [c.strip().lower() for c in df.columns]
+
+    df.rename(columns={
+        "latitude": "lat",
+        "longitude": "lng",
+        "countryid": "country_id",
+        "operatorid": "operator_id",
+        "usagetypeid": "usage_type",
+        "title": "name"
+    }, inplace=True)
+
+    df['country_id'] = pd.to_numeric(df['country_id'], errors='coerce').fillna(0).astype(int)
+    df['operator_id'] = pd.to_numeric(df['operator_id'], errors='coerce').fillna(0).astype(int)
+    
+    if "usage_type" in df.columns:
+        df["usage_type"] = pd.to_numeric(df["usage_type"], errors="coerce").fillna(0).astype(int)
+
+    with ref_lock:
+        countries = reference_data.get('countries', {})
+        operators = reference_data.get('operators', {})
+
+    df['country_name'] = df['country_id'].map(countries).fillna(df['country_id'].astype(str))
+    df['operator_name'] = df['operator_id'].map(operators).fillna(df['operator_id'].astype(str))
+
+    df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
+    df["lng"] = pd.to_numeric(df["lng"], errors="coerce")
+
+    df = df.dropna(subset=["lat", "lng"])
+    df = df[df["lat"].between(-90, 90) & df["lng"].between(-180, 180)]
+    df = df.replace([np.inf, -np.inf], np.nan).fillna(0)
+
+    new_hash = compute_hash(df)
+    if LAST_HASH == new_hash:
+        log.info("⏭ No change in data")
+        return
+
+    with data_lock:
+        store_df = df
+        LAST_HASH = new_hash
+
+    store_df.to_pickle(DATA_PATH)
+    log.info(f"✅ Loaded {len(df)} stations")
+
+
+def check_and_refresh():
+    log.info("🔄 Refreshing...")
+    fetch_reference_data()
+    load_data()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global store_df, reference_data
+    fetch_reference_data()
+    load_data()
+    if not scheduler.running:
+        scheduler.add_job(check_and_refresh, IntervalTrigger(hours=24))
+        scheduler.start()
+    yield
+    scheduler.shutdown()
+
+app.router.lifespan_context = lifespan
+
+
+# ------------------ API ------------------
+
+@app.get("/api/metrics")
+def get_metrics():
+    with data_lock:
+        if store_df is None or store_df.empty:
+            return {
+                "total_stations": 0,
+                "countries": 0,
+                "operators": 0,
+                "dc_fast": 0
+            }
+
+        df = store_df.copy()
+
+    dc_fast = df[df["usage_type"].isin([3,4,5])].shape[0] if "usage_type" in df.columns else 0
+
+    return {
+        "total_stations": len(df),
+        "countries": df["country_name"].nunique(),
+        "operators": df["operator_id"].nunique(),  # 🔥 FIXED
+        "dc_fast": dc_fast
+    }
+@app.get("/api/stations")
+def get_stations(
+    min_lat: float,
+    max_lat: float,
+    min_lng: float,
+    max_lng: float,
+    zoom: int = 4,
+):
+    with data_lock:
+        if store_df is None: return {"features": [], "total": 0}
+        df = store_df.copy()
+
+    df = df[(df["lat"] >= min_lat) & (df["lat"] <= max_lat) & (df["lng"] >= min_lng) & (df["lng"] <= max_lng)]
+
+    if zoom < 4: LIMIT = 4000
+    elif zoom < 6: LIMIT = 12000
+    elif zoom < 8: LIMIT = 30000
+    else: LIMIT = 60000
+
+    if len(df) > LIMIT:
+        df = df.sample(n=LIMIT, random_state=42)
+
+    return {"features": df.to_dict("records"), "total": len(df)}
+    
+@app.get("/api/stations/filtered")
+def get_filtered_stations(
+    min_lat: float,
+    max_lat: float,
+    min_lng: float,
+    max_lng: float,
+    zoom: int = 4,
+    charger_type: Optional[str] = None,
+    country_id: Optional[List[int]] = Query(None),
+    operator_id: Optional[List[str]] = Query(None),
+):
+    with data_lock:
+        if store_df is None or store_df.empty:
+            return {"features": [], "total": 0, "bounds": None}
+
+        df = store_df.copy()
+
+    # 1. 🌍 Spatial Filter (map bounds)
+    df = df[
+        (df["lat"] >= min_lat) & (df["lat"] <= max_lat) &
+        (df["lng"] >= min_lng) & (df["lng"] <= max_lng)
+    ]
+
+    # 2. 🌎 Country Filter
+    if country_id:
+        df = df[df["country_id"].isin(country_id)]
+
+    # 3. 🏢 Operator Filter (ID + NAME + PARTIAL MATCH)
+    if operator_id:
+        if isinstance(operator_id[0], str) and not str(operator_id[0]).isdigit():
+            search_terms = [str(op).lower() for op in operator_id]
+
+            df = df[
+                df["operator_name"]
+                .astype(str)
+                .str.lower()
+                .apply(lambda name: any(term in name for term in search_terms))
+            ]
+        else:
+            df = df[df["operator_id"].isin([int(op) for op in operator_id])]
+
+    # 4. ⚡ Charger Type Filter
+    if charger_type and "usage_type" in df.columns:
+        if charger_type == "l1":
+            df = df[df["usage_type"] == 1]
+        elif charger_type == "l2":
+            df = df[df["usage_type"] == 2]
+        elif charger_type == "dc_fast":
+            df = df[df["usage_type"].isin([3, 4, 5])]
+
+    # 5. 📉 Sampling based on zoom (performance)
+    if zoom < 4:
+        LIMIT = 4000
+    elif zoom < 6:
+        LIMIT = 12000
+    elif zoom < 8:
+        LIMIT = 30000
+    else:
+        LIMIT = 60000
+
+    if len(df) > LIMIT:
+        df = df.sample(n=LIMIT, random_state=42)
+
+    # 6. 🔥 Compute bounds (for auto-zoom)
+    if not df.empty:
+        bounds = {
+            "min_lat": float(df["lat"].min()),
+            "max_lat": float(df["lat"].max()),
+            "min_lng": float(df["lng"].min()),
+            "max_lng": float(df["lng"].max()),
+        }
+    else:
+        bounds = None
+
+    return {
+        "features": df.to_dict("records"),
+        "total": len(df),
+        "bounds": bounds,
+    }
+# ------------------ FILTER OPTIONS API ------------------
+
+# ------------------ FILTER OPTIONS API ------------------
+
+@app.get("/api/filters/countries")
+def get_all_countries():
+    """Returns the FULL list of unique countries for a static dropdown."""
+    with data_lock:
+        if store_df is None or store_df.empty: return []
+        # No search param here; send everything so the dropdown is pre-populated
+        countries = store_df[['country_id', 'country_name']].drop_duplicates()
+    
+    return countries.sort_values("country_name").to_dict("records")
+
+@app.get("/api/filters/operators")
+def search_operators(q: str = Query(None)):
+    """Returns operators based on typing (Autocomplete)."""
+    with data_lock:
+        if store_df is None or store_df.empty: return []
+        operators = store_df[['operator_id', 'operator_name']].drop_duplicates()
+
+    if q:
+        # Filter as the user types
+        operators = operators[operators['operator_name'].str.contains(q, case=False, na=False)]
+    
+    # Limit to top 20 results while typing to keep the UI clean
+    return operators.sort_values("operator_name").head(20).to_dict("records")
+@app.get("/api/stations/count")
+def get_station_count(
+    country_id: Optional[List[int]] = Query(None),
+    operator_id: Optional[List[int]] = Query(None),
+):
+    with data_lock:
+        if store_df is None or store_df.empty:
+            return {"total": 0}
+        df = store_df.copy()
+
+    # 🔥 APPLY FILTERS ONLY (NO BOUNDS)
+    if country_id:
+        df = df[df["country_id"].isin(country_id)]
+
+    if operator_id:
+        df = df[df["operator_id"].isin(operator_id)]
+
+    return {"total": len(df)}
+@app.get("/api/top-operators")
+def top_operators(
+    country_id: Optional[List[int]] = Query(None),
+    operator_id: Optional[List[int]] = Query(None),
+):
+    with data_lock:
+        if store_df is None or store_df.empty:
+            return []
+        df = store_df.copy()
+
+    # 🔥 Apply filters (same as map)
+    if country_id:
+        df = df[df["country_id"].isin(country_id)]
+
+    if operator_id:
+        df = df[df["operator_id"].isin(operator_id)]
+
+    # 🔥 Group + count
+    grouped = (
+        df.groupby(["operator_id", "operator_name"])
+        .size()
+        .reset_index(name="count")
+    )
+
+    return grouped.sort_values("count", ascending=False).head(10).to_dict("records")
+@app.get("/api/stations/csv")
+def download_csv():
+    with data_lock:
+        if store_df is None: return {"error": "no data"}
+        csv_data = store_df.to_csv(index=False)
+    return StreamingResponse(io.StringIO(csv_data), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=stations.csv"})
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+</file>
+
+<file path="README.md">
+# EV Charging Intelligence Dashboard
+
+## Overview
+This project is an end-to-end EV charging infrastructure dashboard that visualizes global charging stations using real-time data from the OpenChargeMap API.
+
+It combines a FastAPI backend for data fetching and processing with a Next.js frontend for interactive map-based visualization.
+
+---
+
+## Architecture
+- Frontend: Next.js (TypeScript), MapLibre GL  
+- Backend: FastAPI (Python)  
+- Data Source: OpenChargeMap API  
+
+---
+
+## Data Flow
+OpenChargeMap API → FastAPI Backend → Data Normalisation → JSON API → Next.js Frontend → Map Rendering
+
+---
+
+## Data Normalisation
+The raw API data contains nested structures.
+
+A normalization process extracts and structures key fields:
+- id  
+- name  
+- operator  
+- latitude (lat)  
+- longitude (lng)  
+- power (kW)  
+- level_id  
+- status  
+
+This ensures consistent and clean data for frontend usage.
+
+---
+
+## Features
+- Global EV charging station visualization  
+- Interactive map with markers  
+- Backend metrics computation  
+
+---
+
+## Issues Faced and Fixes
+
+### 404 Not Found
+- Cause: API route was missing  
+- Fix: Implemented `/api/stations` endpoint in FastAPI  
+
+### 500 Internal Server Error
+- Cause: Backend crash due to incorrect method usage and unsafe data access  
+- Fix: Corrected method usage and added safe fallback handling  
+
+### 403 Forbidden
+- Cause: OpenChargeMap blocked API requests  
+- Fix: Added `User-Agent` header  
+
+### Map Not Showing Data
+- Cause: Invalid filtering logic and missing latitude/longitude validation  
+- Fix: Implemented safe filtering and null checks  
+
+### React Runtime Error
+- Cause: Accessing `stations.length` when undefined  
+- Fix: Used `stations?.length || 0`  
+
+---
+
+## API Endpoints
+
+### `/api/stations`
+Returns normalized EV charging station data.
+
+### `/api/metrics`
+Returns aggregated statistics.
+ 
+ ## API Endpoints
+
+### `/api/stations`
+Returns EV charging stations filtered by map bounds and zoom level.
+
+### `/api/top-operators`
+Returns top operators ranked by station count.
+
+### `/api/stations/csv`
+Exports the dataset as a CSV file.
+
+### `/health`
+Returns backend health status and total station count.
+
+---
+
+## How to Run
+
+### Backend (FastAPI)
+
+```bash
+cd EV
+venv\Scripts\activate   # or source venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+---
+
+### Frontend
+cd frontend
+npm install 
+npm run dev
+Frontend run at  http://localhost:3000⁠
+</file>
+
+<file path="requirements.txt">
+annotated-doc==0.0.4
+annotated-types==0.7.0
+anyio==4.13.0
+certifi==2026.2.25
+charset-normalizer==3.4.6
+click==8.3.1
+colorama==0.4.6
+fastapi==0.135.2
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.11
+numpy==2.4.3
+pandas==3.0.1
+pydantic==2.12.5
+pydantic_core==2.41.5
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.2
+requests==2.33.0
+six==1.17.0
+starlette==1.0.0
+typing-inspection==0.4.2
+typing_extensions==4.15.0
+tzdata==2025.3
+urllib3==2.6.3
+uvicorn==0.42.0
+</file>
+
+</files>

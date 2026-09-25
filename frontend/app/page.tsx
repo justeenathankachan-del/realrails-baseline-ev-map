@@ -236,11 +236,18 @@ const [aboutOpen, setAboutOpen] = useState(false);
           onChange={setFilters}
           countryOptions={countries}
         />
-      </div>
+      <div className="relative flex-1 w-full h-full overflow-hidden">
 
-      <div className="flex flex-1 w-full h-full">
-
-        <div className="flex-1 h-full bg-dex-surface">
+        <div className="absolute inset-0">
+  <MapStage
+    key={refreshKey}
+    onCountChange={setStationCount}
+    filters={{
+      ...filters,
+      operator: operatorId ? operatorId.toString() : "",
+    }}
+  />
+</div>
           <MapStage
             key={refreshKey}
             onCountChange={setStationCount}
